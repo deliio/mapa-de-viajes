@@ -267,3 +267,55 @@ svg:not([class]):not(#map) { width: 16px; height: 16px; fill: none; stroke: curr
   .map-wrap { margin: 0 -6px; }
   .map-ctrl button { width: 28px; height: 28px; font-size: 14px; }
 }
+
+/* ---------- Ciudades y fotos en el mapa ---------- */
+.sw-city { background: #fff; width: 7px; height: 7px; box-shadow: 0 0 0 2px var(--visit); }
+.sw-photo { border: 2px solid #fff; background: var(--visit); width: 12px; height: 12px; }
+#map .city { fill: #fff; stroke: var(--visit); vector-effect: non-scaling-stroke; stroke-width: 1.5; cursor: pointer; }
+#map .pin-ring { fill: var(--surface-2); stroke: #fff; vector-effect: non-scaling-stroke; stroke-width: 2; }
+#map .pin { cursor: pointer; }
+#map .pin-badge { fill: var(--visit); }
+#map .pin-num { fill: #1a1408; font-weight: 700; font-family: var(--font); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+
+/* ---------- Fotos en la ficha ---------- */
+.cs-photos { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.cs-sub { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+.cs-sub h4 { font: 600 17px/1.2 var(--serif); }
+.btn-sm { min-height: 32px; padding: 6px 10px; font-size: 13px; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 4px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex-shrink: 0; padding: 5px 11px; border-radius: 99px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-2);
+}
+.chip.on { border-color: var(--visit); color: var(--visit); background: #e0b46e14; }
+.chip small { color: var(--muted); margin-left: 3px; }
+.gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+@media (min-width: 480px) { .gallery { grid-template-columns: repeat(4, 1fr); } }
+.gallery button { position: relative; aspect-ratio: 1; border: 0; padding: 0; border-radius: 6px; overflow: hidden; background: var(--surface-2); cursor: pointer; }
+.gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery .g-city { position: absolute; left: 4px; bottom: 4px; right: 4px; font-size: 10px; color: #fff; text-shadow: 0 1px 3px #000; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gallery .g-add { display: flex; align-items: center; justify-content: center; font-size: 26px; color: var(--muted); border: 1px dashed var(--border-strong); background: transparent; }
+#csPhotoHint { margin-top: 8px; }
+.trip-photos { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ---------- Visor ---------- */
+.lightbox {
+  position: fixed; inset: 0; z-index: 70; background: #000;
+  display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  animation: fade .15s ease;
+}
+.lb-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px 8px 16px; }
+.lb-cap { font-size: 13px; color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-actions { display: flex; gap: 4px; }
+.lb-stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: pan-y; }
+.lb-stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-select: none; }
+.lb-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 56px; border: 0; border-radius: 10px; cursor: pointer;
+  background: rgba(20, 20, 20, .55); color: #fff; font-size: 30px; line-height: 1;
+}
+.lb-nav.prev { left: 8px; } .lb-nav.next { right: 8px; }
+.lb-count { text-align: center; padding: 10px; }
+@media (hover: none) { .lb-nav { display: none; } }

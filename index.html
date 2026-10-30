@@ -72,6 +72,8 @@
         <div class="legend">
           <span><i class="sw sw-none"></i><span data-i18n="legend.none">Sin visitar</span></span>
           <span><i class="sw sw-visited"></i><span data-i18n="legend.visited">Visitado</span></span>
+          <span><i class="sw sw-city"></i><span data-i18n="legend.city">Ciudad</span></span>
+          <span><i class="sw sw-photo"></i><span data-i18n="legend.photos">Con fotos</span></span>
           <span><i class="sw sw-home"></i><span data-i18n="legend.home">Casa</span><span id="homeName" class="muted"></span></span>
         </div>
 
@@ -133,7 +135,35 @@
       <button class="btn btn-ghost" id="csHome" type="button"></button>
     </div>
     <ul class="trip-list compact" id="csTrips"></ul>
+
+    <div class="cs-photos">
+      <div class="cs-sub">
+        <h4><span data-i18n="ph.title">Fotos</span> <span class="muted" id="csPhotoCount"></span></h4>
+        <button class="btn btn-sm" id="csAddPhotos" type="button"></button>
+      </div>
+      <div class="chips" id="csCities"></div>
+      <div class="gallery" id="csGallery"></div>
+      <p class="muted small" id="csPhotoHint"></p>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" multiple hidden>
   </div>
+</div>
+
+<!-- ============ VISOR DE FOTOS ============ -->
+<div class="lightbox" id="lightbox" hidden>
+  <div class="lb-top">
+    <span class="lb-cap" id="lbCap"></span>
+    <div class="lb-actions">
+      <button class="btn btn-ghost icon-btn" id="lbDelete" type="button" aria-label="Borrar">🗑</button>
+      <button class="btn btn-ghost icon-btn" id="lbClose" type="button" aria-label="Cerrar">✕</button>
+    </div>
+  </div>
+  <div class="lb-stage" id="lbStage">
+    <img id="lbImg" alt="">
+    <button class="lb-nav prev" id="lbPrev" type="button" aria-label="Anterior">‹</button>
+    <button class="lb-nav next" id="lbNext" type="button" aria-label="Siguiente">›</button>
+  </div>
+  <div class="lb-count muted small" id="lbCount"></div>
 </div>
 
 <!-- ============ FORMULARIO DE VIAJE ============ -->
@@ -191,10 +221,12 @@
     </label>
     <div class="menu-list">
       <button class="btn" id="exportBtn" type="button" data-i18n="menu.export">⬇ Copia de seguridad (exportar)</button>
+      <button class="btn" id="exportPhotosBtn" type="button" data-i18n="menu.exportPhotos">⬇ Copia con fotos (exportar)</button>
       <button class="btn" id="importBtn" type="button" data-i18n="menu.import">⬆ Restaurar copia (importar)</button>
       <button class="btn btn-danger" id="resetBtn" type="button" data-i18n="menu.reset">Borrar todos los datos</button>
     </div>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
+    <p class="muted small" data-i18n="menu.photosNote" style="margin-bottom:8px">Las fotos se guardan solo en este dispositivo. En iPhone, añade la app a la pantalla de inicio para que Safari no las borre y haz de vez en cuando una «Copia con fotos».</p>
     <p class="muted small" data-i18n="menu.about">Porcentaje calculado sobre los 195 países reconocidos por la ONU (193 miembros + Vaticano y Palestina). Los territorios se muestran en el mapa pero no cuentan para el %.</p>
   </div>
 </div>
@@ -202,6 +234,7 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="countries.js"></script>
+<script src="photos.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

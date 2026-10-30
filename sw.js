@@ -1,8 +1,8 @@
 /* Service worker: permite instalar el mapa como app y abrirlo sin conexión.
    Estrategia "red primero": siempre intenta la versión nueva y, si no hay internet,
    usa la copia guardada. */
-const CACHE = 'mapa-de-viajes-v1';
-const SHELL = ['./', './index.html', './styles.css', './app.js', './countries.js', './manifest.json', './icons/icon-192.png'];
+const CACHE = 'mapa-de-viajes-v2';
+const SHELL = ['./', './index.html', './styles.css', './app.js', './countries.js', './photos.js', './manifest.json', './icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

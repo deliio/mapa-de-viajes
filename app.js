@@ -50,6 +50,14 @@ const T = {
     'toast.badFile': 'El archivo no es una copia válida', 'toast.reset': 'Datos borrados', 'toast.exported': 'Copia descargada',
     'foot.local': 'Tus datos se guardan solo en este dispositivo. Usa «Copia de seguridad» en el menú ⋯ para pasarlos a otro.',
     'k.EU': 'Europa', 'k.AS': 'Asia', 'k.AF': 'África', 'k.NA': 'América del Norte', 'k.SA': 'América del Sur', 'k.OC': 'Oceanía', 'k.AN': 'Antártida',
+    'legend.city': 'Ciudad', 'legend.photos': 'Con fotos',
+    'ph.title': 'Fotos', 'ph.all': 'Todas', 'ph.general': 'General', 'ph.addTo': '+ Fotos de {p}',
+    'ph.empty': 'Añade las fotos que hiciste aquí. Elige antes la ciudad en las pestañas de arriba.',
+    'ph.emptyNoCities': 'Añade las fotos que hiciste aquí. Si guardas un viaje con ciudades, podrás separarlas por ciudad.',
+    'ph.adding': 'Guardando fotos… {n}/{t}', 'ph.added': '{n} fotos guardadas', 'ph.added1': '1 foto guardada',
+    'ph.confirmDelete': '¿Borrar esta foto?', 'ph.deleted': 'Foto borrada', 'ph.n': '{n} fotos', 'ph.n1': '1 foto',
+    'menu.exportPhotos': '⬇ Copia con fotos (exportar)', 'menu.exporting': 'Preparando copia…',
+    'menu.photosNote': 'Las fotos se guardan solo en este dispositivo. En iPhone, añade la app a la pantalla de inicio para que Safari no las borre y haz de vez en cuando una «Copia con fotos».',
     'lang.other': 'English',
   },
   en: {
@@ -88,6 +96,14 @@ const T = {
     'toast.badFile': 'That file is not a valid backup', 'toast.reset': 'Data deleted', 'toast.exported': 'Backup downloaded',
     'foot.local': 'Your data is stored only on this device. Use “Backup” in the ⋯ menu to move it to another one.',
     'k.EU': 'Europe', 'k.AS': 'Asia', 'k.AF': 'Africa', 'k.NA': 'North America', 'k.SA': 'South America', 'k.OC': 'Oceania', 'k.AN': 'Antarctica',
+    'legend.city': 'City', 'legend.photos': 'With photos',
+    'ph.title': 'Photos', 'ph.all': 'All', 'ph.general': 'General', 'ph.addTo': '+ Photos of {p}',
+    'ph.empty': 'Add the photos you took here. Pick the city in the tabs above first.',
+    'ph.emptyNoCities': 'Add the photos you took here. Save a trip with cities to sort them by city.',
+    'ph.adding': 'Saving photos… {n}/{t}', 'ph.added': '{n} photos saved', 'ph.added1': '1 photo saved',
+    'ph.confirmDelete': 'Delete this photo?', 'ph.deleted': 'Photo deleted', 'ph.n': '{n} photos', 'ph.n1': '1 photo',
+    'menu.exportPhotos': '⬇ Backup with photos (export)', 'menu.exporting': 'Preparing backup…',
+    'menu.photosNote': 'Photos are stored only on this device. On iPhone, add the app to your Home Screen so Safari does not delete them, and make a “Backup with photos” now and then.',
     'lang.other': 'Español',
   },
 };
@@ -99,7 +115,8 @@ let selected = null;   // país abierto en la hoja
 let editing = null;    // viaje en edición
 
 function load() {
-  const base = { lang: 'es', home: 'ES', homeCounts: true, marked: [], trips: [] };
+  // geo: caché de ciudades ya localizadas → [x, y] en el mapa (o 0 si no se encontró)
+  const base = { lang: 'es', home: 'ES', homeCounts: true, marked: [], trips: [], geo: {} };
   try {
     const raw = JSON.parse(localStorage.getItem(STORE_KEY));
     if (raw && typeof raw === 'object') return { ...base, ...raw };
@@ -168,8 +185,115 @@ function buildMap() {
     }
   });
   homeG = document.createElementNS(NS, 'g');
-  svg.append(land, dotG, homeG);
+  pinG = document.createElementNS(NS, 'g');
+  const defs = document.createElementNS(NS, 'defs');
+  defs.innerHTML = '<clipPath id="pinClip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>';
+  svg.append(defs, land, dotG, homeG, pinG);
   applyViewBox();
+}
+
+/* ---------- Ciudades: localizarlas y pintarlas con sus fotos ---------- */
+let pinG = null;
+const cityKey = (country, city) => `${country}|${norm(city)}`;
+
+// Natural Earth 1, la misma proyección con la que se generó countries.js
+function project(lat, lon) {
+  const r = Math.PI / 180; const l = lon * r; const p = lat * r; const p2 = p * p; const p4 = p2 * p2;
+  const x = l * (0.8707 - 0.131979 * p2 + p4 * (-0.013791 + p4 * (0.003971 * p2 - 0.001529 * p4)));
+  const y = p * (1.007226 + p2 * (0.015085 + p4 * (-0.044475 + 0.028874 * p2 - 0.005916 * p4)));
+  const [k, tx, ty] = MAP_PROJ;
+  return [Math.round((tx + k * x) * 10) / 10, Math.round((ty - k * y) * 10) / 10];
+}
+
+// Todas las ciudades conocidas: las de los viajes y las que tienen fotos
+function allCities() {
+  const map = new Map();
+  state.trips.forEach((tr) => tr.cities.forEach((city) => {
+    const k = cityKey(tr.country, city);
+    if (!map.has(k)) map.set(k, { country: tr.country, city });
+  }));
+  PhotoStore.all().forEach((p) => {
+    if (!p.city) return;
+    const k = cityKey(p.country, p.city);
+    if (!map.has(k)) map.set(k, { country: p.country, city: p.city });
+  });
+  return [...map.values()];
+}
+
+// Abreviaturas que la gente escribe y el buscador no entiende
+const CITY_ALIASES = {
+  cdmx: 'Ciudad de México', df: 'Ciudad de México', nyc: 'New York', ny: 'New York', 'nueva york': 'New York',
+  la: 'Los Angeles', sf: 'San Francisco', bcn: 'Barcelona', mad: 'Madrid', bsas: 'Buenos Aires', 'bs as': 'Buenos Aires',
+  rio: 'Rio de Janeiro', 'gran canaria': 'Las Palmas de Gran Canaria', 'las palmas': 'Las Palmas de Gran Canaria',
+};
+
+// Busca las coordenadas de cada ciudad nueva (Open-Meteo, gratis y sin clave) y las guarda
+let geocoding = false;
+async function geocodeMissing() {
+  if (geocoding || !navigator.onLine) return;
+  geocoding = true;
+  let found = false;
+  try {
+    for (const { country, city } of allCities()) {
+      const k = cityKey(country, city);
+      if (k in state.geo) continue;
+      try {
+        const name = CITY_ALIASES[norm(city)] || city;
+        let hit = null;
+        for (const lang of ['es', 'en']) { // el buscador solo reconoce «Lisboa» o «Londres» pidiendo el idioma
+          const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&format=json&language=${lang}&countryCode=${country}`;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('geo');
+          hit = (await res.json()).results?.[0];
+          if (hit) break;
+        }
+        state.geo[k] = hit ? project(hit.latitude, hit.longitude) : 0;
+        found = true;
+      } catch (e) { break; } // sin conexión: se reintenta en el próximo cambio
+    }
+  } finally {
+    geocoding = false;
+    if (found) { save(); paintPins(); }
+  }
+}
+
+function paintPins() {
+  pinG.innerHTML = '';
+  const items = allCities().map((c) => {
+    const photos = PhotoStore.of(c.country, c.city);
+    // si no se encontró la ciudad pero tiene fotos, la chincheta va en el centro del país
+    const at = state.geo[cityKey(c.country, c.city)] || (photos.length && cityKey(c.country, c.city) in state.geo ? BY_CODE.get(c.country)?.p : null);
+    return { ...c, at, photos };
+  }).filter((c) => c.at);
+  // Fotos «generales» de un país sin ninguna ciudad con fotos: chincheta en el país
+  const withCityPhotos = new Set(items.filter((c) => c.photos.length).map((c) => c.country));
+  const general = new Map();
+  PhotoStore.all().forEach((p) => { if (!withCityPhotos.has(p.country)) general.set(p.country, true); });
+  general.forEach((_, code) => {
+    const c = BY_CODE.get(code);
+    if (c) items.push({ country: code, city: '', at: c.p, photos: PhotoStore.of(code) });
+  });
+  // primero las ciudades sin fotos (debajo) y luego las chinchetas con foto
+  items.sort((a, b) => a.photos.length - b.photos.length);
+  for (const it of items) {
+    if (!it.photos.length) {
+      const dot = document.createElementNS(NS, 'circle');
+      dot.setAttribute('cx', it.at[0]); dot.setAttribute('cy', it.at[1]); dot.setAttribute('class', 'city');
+      dot.dataset.c = it.country; dot.dataset.city = it.city;
+      dot.innerHTML = `<title>${esc(it.city)}</title>`;
+      pinG.appendChild(dot);
+      continue;
+    }
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'pin'); g.dataset.c = it.country; g.dataset.city = it.city;
+    g.dataset.x = it.at[0]; g.dataset.y = it.at[1];
+    const label = it.city || cname(BY_CODE.get(it.country));
+    g.innerHTML = `<title>${esc(label)} · ${it.photos.length}</title><circle class="pin-ring"/>`
+      + `<image clip-path="url(#pinClip)" preserveAspectRatio="xMidYMid slice" href="${PhotoStore.thumb(it.photos[0].id)}"/>`
+      + (it.photos.length > 1 ? `<circle class="pin-badge"/><text class="pin-num">${it.photos.length > 99 ? '99+' : it.photos.length}</text>` : '');
+    pinG.appendChild(g);
+  }
+  sizeMarkers();
 }
 
 function paintMap() {
@@ -201,7 +325,23 @@ function sizeMarkers() {
   for (const el of dots.values()) el.setAttribute('r', Math.max(0.35, 2 * k));
   const [ring, core] = homeG.children;
   if (ring) { ring.setAttribute('r', 6 * k); core.setAttribute('r', 1.8 * k); }
+  if (!pinG) return;
+  // Ciudades y chinchetas: tamaño fijo en píxeles de pantalla
+  const px = vb.w / (svg.getBoundingClientRect().width || MAP_W);
+  const R = 13 * px; const r = 3.2 * px;
+  for (const el of pinG.children) {
+    if (el.tagName === 'circle') { el.setAttribute('r', r); continue; }
+    const x = +el.dataset.x; const y = +el.dataset.y;
+    const [ringEl, img, badge, num] = [el.querySelector('.pin-ring'), el.querySelector('image'), el.querySelector('.pin-badge'), el.querySelector('.pin-num')];
+    ringEl.setAttribute('cx', x); ringEl.setAttribute('cy', y); ringEl.setAttribute('r', R);
+    img.setAttribute('x', x - R); img.setAttribute('y', y - R); img.setAttribute('width', 2 * R); img.setAttribute('height', 2 * R);
+    if (badge) {
+      badge.setAttribute('cx', x + R * 0.8); badge.setAttribute('cy', y - R * 0.8); badge.setAttribute('r', R * 0.48);
+      num.setAttribute('x', x + R * 0.8); num.setAttribute('y', y - R * 0.8); num.setAttribute('font-size', R * 0.55);
+    }
+  }
 }
+window.addEventListener('resize', () => sizeMarkers());
 
 function clampVB(v) {
   const w = Math.min(MAP_W, Math.max(MAP_W / 48, v.w));
@@ -253,7 +393,8 @@ svg.addEventListener('pointerdown', (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   svg.setPointerCapture(e.pointerId);
   if (pointers.size === 1) {
-    gesture = { moved: false, sx: e.clientX, sy: e.clientY, target: e.target.closest('[data-c]')?.dataset.c || null };
+    const hit = e.target.closest('[data-c]');
+    gesture = { moved: false, sx: e.clientX, sy: e.clientY, target: hit?.dataset.c || null, city: hit?.dataset.city };
   } else if (gesture) gesture.moved = true;
 });
 svg.addEventListener('pointermove', (e) => {
@@ -282,7 +423,7 @@ function endPointer(e) {
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
   if (pointers.size === 0 && gesture) {
-    if (!gesture.moved && gesture.target && e.type === 'pointerup') openCountry(gesture.target);
+    if (!gesture.moved && gesture.target && e.type === 'pointerup') openCountry(gesture.target, false, gesture.city);
     gesture = null; svg.classList.remove('dragging');
   }
 }
@@ -345,6 +486,7 @@ function tripRow(tr) {
     <div class="trip-main">
       <div class="trip-title"><span class="yr">${month}${tr.year}</span> — ${esc(c ? cname(c) : tr.country)}</div>
       ${tr.note ? `<div class="trip-note">${esc(tr.note)}</div>` : ''}
+      ${(() => { const n = tr.cities.reduce((s, city) => s + PhotoStore.of(tr.country, city).length, 0); return n ? `<div class="trip-photos">📷 ${n === 1 ? t('ph.n1') : t('ph.n', { n })}</div>` : ''; })()}
     </div>
     <div class="trip-cities">${esc(tr.cities.join(', '))}</div>
   </li>`;
@@ -450,9 +592,12 @@ document.addEventListener('keydown', (e) => {
   if (open) closeSheet(open);
 });
 
-function openCountry(code, zoom = false) {
+// photoCity: null = todas las fotos del país, '' = fotos generales del país, 'Lisboa' = una ciudad
+let photoCity = null;
+function openCountry(code, zoom = false, city = null) {
   const c = BY_CODE.get(code);
   if (!c) return;
+  if (selected !== code || city != null) photoCity = city ?? null;
   selected = code;
   if (zoom) focusCountry(c);
   renderCountrySheet();
@@ -479,7 +624,110 @@ function renderCountrySheet() {
   home.disabled = isHome;
   home.textContent = isHome ? '⌂ ' + t('cs.isHome') : '⌂ ' + t('cs.setHome');
   $('csTrips').innerHTML = sortTrips(trips).map(tripRow).join('');
+  renderCountryPhotos();
 }
+
+/* ---------- Fotos de la ficha ---------- */
+let galleryIds = [];
+function renderCountryPhotos() {
+  const c = BY_CODE.get(selected);
+  const cities = allCities().filter((x) => x.country === c.c);
+  const all = PhotoStore.of(c.c);
+  const general = PhotoStore.of(c.c, '');
+  const n = (list) => (list.length ? `<small>${list.length}</small>` : '');
+  const chip = (val, label, list) => `<button type="button" class="chip${photoCity === val ? ' on' : ''}" ${val === null ? 'data-all="1"' : `data-city="${esc(val)}"`}>${esc(label)}${n(list)}</button>`;
+  $('csCities').innerHTML = cities.length
+    ? chip(null, t('ph.all'), all) + cities.map((x) => chip(x.city, x.city, PhotoStore.of(c.c, x.city))).join('') + chip('', t('ph.general'), general)
+    : '';
+  const shown = photoCity === null ? all : PhotoStore.of(c.c, photoCity);
+  galleryIds = shown.map((p) => p.id);
+  $('csGallery').innerHTML = shown.map((p) => `<button type="button" data-id="${p.id}"><img src="${PhotoStore.thumb(p.id)}" alt="" loading="lazy">`
+    + (photoCity === null && p.city ? `<span class="g-city">${esc(p.city)}</span>` : '') + '</button>').join('')
+    + `<button type="button" class="g-add" aria-label="+">+</button>`;
+  $('csPhotoCount').textContent = all.length ? `· ${all.length}` : '';
+  $('csAddPhotos').textContent = t('ph.addTo', { p: photoCity ? photoCity : cname(c) });
+  $('csPhotoHint').textContent = shown.length ? '' : cities.length ? t('ph.empty') : t('ph.emptyNoCities');
+}
+$('csCities').addEventListener('click', (e) => {
+  const b = e.target.closest('.chip');
+  if (!b) return;
+  photoCity = b.dataset.all ? null : b.dataset.city;
+  renderCountryPhotos();
+});
+$('csGallery').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.classList.contains('g-add')) $('photoInput').click();
+  else openLightbox(galleryIds.indexOf(b.dataset.id));
+});
+$('csAddPhotos').onclick = () => $('photoInput').click();
+$('photoInput').onchange = async (e) => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length || !selected) return;
+  const country = selected; const city = photoCity || '';
+  toast(t('ph.adding', { n: 0, t: files.length }));
+  const n = await PhotoStore.add(files, country, city, (k) => toast(t('ph.adding', { n: k, t: files.length })));
+  toast(n === 1 ? t('ph.added1') : t('ph.added', { n }));
+  renderAll();
+  geocodeMissing();
+};
+
+/* ---------- Visor de fotos ---------- */
+let lbIndex = 0; let lbUrl = null;
+async function showLightbox() {
+  const id = galleryIds[lbIndex];
+  const meta = PhotoStore.all().find((p) => p.id === id);
+  if (!meta) return closeLightbox();
+  $('lbImg').src = PhotoStore.thumb(id); // la miniatura aparece al instante, luego la foto completa
+  const url = await PhotoStore.full(id);
+  if (galleryIds[lbIndex] !== id) { URL.revokeObjectURL(url); return; }
+  if (lbUrl) URL.revokeObjectURL(lbUrl);
+  lbUrl = url; $('lbImg').src = url;
+  const c = BY_CODE.get(meta.country);
+  const date = meta.date ? new Date(meta.date).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  $('lbCap').textContent = [meta.city, c && cname(c), date].filter(Boolean).join(' · ');
+  $('lbCount').textContent = `${lbIndex + 1} / ${galleryIds.length}`;
+  $('lbPrev').hidden = lbIndex === 0; $('lbNext').hidden = lbIndex === galleryIds.length - 1;
+}
+function openLightbox(i) {
+  if (i < 0) return;
+  lbIndex = i; $('lightbox').hidden = false; showLightbox();
+}
+function closeLightbox() {
+  $('lightbox').hidden = true; $('lbImg').removeAttribute('src');
+  if (lbUrl) { URL.revokeObjectURL(lbUrl); lbUrl = null; }
+}
+function stepLightbox(d) {
+  const i = lbIndex + d;
+  if (i < 0 || i >= galleryIds.length) return;
+  lbIndex = i; showLightbox();
+}
+$('lbClose').onclick = closeLightbox;
+$('lbPrev').onclick = () => stepLightbox(-1);
+$('lbNext').onclick = () => stepLightbox(1);
+$('lbDelete').onclick = async () => {
+  if (!confirm(t('ph.confirmDelete'))) return;
+  await PhotoStore.remove(galleryIds[lbIndex]);
+  galleryIds.splice(lbIndex, 1);
+  toast(t('ph.deleted'));
+  renderAll();
+  if (!galleryIds.length) return closeLightbox();
+  lbIndex = Math.min(lbIndex, galleryIds.length - 1); showLightbox();
+};
+// Deslizar para pasar de foto
+let swipeX = null;
+$('lbStage').addEventListener('pointerdown', (e) => { swipeX = e.clientX; });
+$('lbStage').addEventListener('pointerup', (e) => {
+  if (swipeX === null) return;
+  const dx = e.clientX - swipeX; swipeX = null;
+  if (Math.abs(dx) > 50) stepLightbox(dx < 0 ? 1 : -1);
+});
+document.addEventListener('keydown', (e) => {
+  if ($('lightbox').hidden) return;
+  if (e.key === 'ArrowLeft') stepLightbox(-1);
+  if (e.key === 'ArrowRight') stepLightbox(1);
+  if (e.key === 'Escape') { e.stopImmediatePropagation(); closeLightbox(); }
+}, true);
 $('csToggle').onclick = () => {
   const code = selected;
   if (state.marked.includes(code)) { state.marked = state.marked.filter((x) => x !== code); toast(t('toast.unmarked')); }
@@ -557,15 +805,20 @@ $('openMenu').onclick = () => {
 };
 $('homeSelect').onchange = (e) => { state.home = e.target.value || null; commit(); };
 $('homeCounts').onchange = (e) => { state.homeCounts = e.target.checked; commit(); };
-$('exportBtn').onclick = () => {
+function downloadBackup(extra, suffix) {
   const { lang, ...data } = state;
-  const blob = new Blob([JSON.stringify({ app: 'mapa-de-viajes', version: 1, ...data }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ app: 'mapa-de-viajes', version: 1, ...data, ...extra })], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `mapa-de-viajes-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `mapa-de-viajes${suffix}-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   toast(t('toast.exported'));
+}
+$('exportBtn').onclick = () => downloadBackup({}, '');
+$('exportPhotosBtn').onclick = async () => {
+  toast(t('menu.exporting'));
+  downloadBackup({ photos: await PhotoStore.exportAll() }, '-fotos');
 };
 $('importBtn').onclick = () => $('importFile').click();
 $('importFile').onchange = async (e) => {
@@ -580,7 +833,10 @@ $('importFile').onchange = async (e) => {
     }));
     if (!confirm(t('menu.confirmImport'))) return;
     state = { ...state, trips, marked: data.marked.filter((c) => BY_CODE.has(c)),
-      home: BY_CODE.has(data.home) ? data.home : state.home, homeCounts: data.homeCounts !== false };
+      home: BY_CODE.has(data.home) ? data.home : state.home, homeCounts: data.homeCounts !== false,
+      geo: data.geo && typeof data.geo === 'object' ? { ...state.geo, ...data.geo } : state.geo };
+    // Una copia sin fotos no toca las fotos que ya tienes
+    if (Array.isArray(data.photos)) await PhotoStore.importAll(data.photos.filter((p) => BY_CODE.has(p?.country)));
     closeSheet($('menuSheet'));
     toast(t('toast.imported'));
     commit();
@@ -589,6 +845,7 @@ $('importFile').onchange = async (e) => {
 $('resetBtn').onclick = () => {
   if (!confirm(t('menu.confirmReset'))) return;
   state = { ...state, trips: [], marked: [] };
+  PhotoStore.clear().then(renderAll);
   closeSheet($('menuSheet'));
   toast(t('toast.reset'));
   commit();
@@ -617,10 +874,10 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
 }
 function renderAll() {
-  paintMap(); renderStats(); renderTrips(); renderChart();
+  paintMap(); paintPins(); renderStats(); renderTrips(); renderChart();
   if (selected && !$('countrySheet').hidden) renderCountrySheet();
 }
-function commit() { save(); renderAll(); }
+function commit() { save(); renderAll(); geocodeMissing(); }
 
 let resizeTimer = 0;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderChart, 150); });
@@ -628,6 +885,8 @@ window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer
 buildMap();
 applyLang();
 renderAll();
+PhotoStore.init().then(() => { renderAll(); geocodeMissing(); });
+window.addEventListener('online', geocodeMissing);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
