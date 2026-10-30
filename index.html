@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#080808">
+  <title>Mapa de viajes</title>
+
+  <!-- App instalable (PWA) en móvil y ordenador -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Viajes">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ CABECERA ============ -->
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">◍</span><span data-i18n="app.title">Mapa de viajes</span></div>
+    <div class="top-actions">
+      <button class="btn btn-ghost" id="langToggle" type="button"><span>🌐</span><span id="langLabel">English</span></button>
+      <button class="btn btn-ghost icon-btn" id="openMenu" type="button" aria-label="Menú">
+        <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="intro">
+      <h1 data-i18n="app.title">Mapa de viajes</h1>
+      <p class="lead" data-i18n="app.lead">Guarda todos los viajes que has hecho y descubre qué porcentaje del mundo conoces.</p>
+    </section>
+
+    <div class="grid">
+      <!-- ============ COLUMNA MAPA ============ -->
+      <section class="card map-card">
+        <div class="card-head">
+          <div>
+            <h2 data-i18n="map.title">Mi mapa de viajes</h2>
+            <p class="muted small" data-i18n="map.hint">Toca un país para marcarlo o añadir un viaje.</p>
+          </div>
+        </div>
+
+        <div class="hero-stat">
+          <div class="hero-num"><span id="pctWorld">0</span><small>%</small></div>
+          <div class="hero-label" data-i18n="stats.world">del mundo visitado</div>
+          <div class="progress"><span id="pctBar"></span></div>
+          <p class="muted small" id="pctDetail"></p>
+        </div>
+
+        <div class="tiles">
+          <div class="tile"><strong id="stCountries">0</strong><span data-i18n="stats.countries">países</span></div>
+          <div class="tile"><strong id="stCities">0</strong><span data-i18n="stats.cities">ciudades</span></div>
+          <div class="tile"><strong id="stContinents">0/6</strong><span data-i18n="stats.continents">continentes</span></div>
+          <div class="tile"><strong id="stTrips">0</strong><span data-i18n="stats.trips">viajes</span></div>
+        </div>
+
+        <label class="field-label" for="search" data-i18n="map.search">Buscar país</label>
+        <div class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="search" type="search" autocomplete="off" data-i18n-ph="map.searchPh" placeholder="Ej: Vietnam">
+          <ul class="search-results" id="searchResults" hidden></ul>
+        </div>
+
+        <div class="legend">
+          <span><i class="sw sw-none"></i><span data-i18n="legend.none">Sin visitar</span></span>
+          <span><i class="sw sw-visited"></i><span data-i18n="legend.visited">Visitado</span></span>
+          <span><i class="sw sw-home"></i><span data-i18n="legend.home">Casa</span><span id="homeName" class="muted"></span></span>
+        </div>
+
+        <div class="map-wrap" id="mapWrap">
+          <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa del mundo"></svg>
+          <div class="map-ctrl">
+            <button type="button" id="zoomIn" aria-label="+">+</button>
+            <button type="button" id="zoomOut" aria-label="−">−</button>
+            <button type="button" id="zoomReset" aria-label="Reset">⟲</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ COLUMNA VIAJES ============ -->
+      <div class="col">
+        <section class="card">
+          <div class="card-head">
+            <h2 data-i18n="trips.title">Viajes guardados</h2>
+            <div class="head-actions">
+              <select id="tripFilter" class="select-sm"></select>
+              <button class="btn btn-primary" id="addTrip" type="button">+ <span data-i18n="trips.add">Viaje</span></button>
+            </div>
+          </div>
+          <ul class="trip-list" id="tripList"></ul>
+          <p class="empty" id="tripEmpty" data-i18n="trips.empty">Aún no has guardado ningún viaje. Toca un país del mapa o pulsa «+ Viaje».</p>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2 data-i18n="chart.title">Viajes por año</h2></div>
+          <div id="yearChart" class="year-chart"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2 data-i18n="cont.title">Por continente</h2></div>
+          <ul class="cont-list" id="contList"></ul>
+        </section>
+      </div>
+    </div>
+
+    <p class="foot muted small" data-i18n="foot.local">Tus datos se guardan solo en este dispositivo. Usa «Copia de seguridad» en el menú ⋯ para pasarlos a otro.</p>
+  </main>
+</div>
+
+<!-- ============ HOJA DE PAÍS ============ -->
+<div class="overlay" id="countrySheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <div>
+        <h3 id="csName"></h3>
+        <p class="muted small" id="csMeta"></p>
+      </div>
+      <button class="btn btn-ghost icon-btn" data-close type="button" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="cs-status" id="csStatus"></div>
+    <div class="sheet-actions">
+      <button class="btn btn-primary" id="csAddTrip" type="button">+ <span data-i18n="cs.addTrip">Añadir viaje</span></button>
+      <button class="btn" id="csToggle" type="button"></button>
+      <button class="btn btn-ghost" id="csHome" type="button"></button>
+    </div>
+    <ul class="trip-list compact" id="csTrips"></ul>
+  </div>
+</div>
+
+<!-- ============ FORMULARIO DE VIAJE ============ -->
+<div class="overlay" id="tripModal" hidden>
+  <form class="sheet" id="tripForm" role="dialog" aria-modal="true" autocomplete="off">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <h3 id="tfTitle"></h3>
+      <button class="btn btn-ghost icon-btn" data-close type="button" aria-label="Cerrar">✕</button>
+    </div>
+    <label class="field">
+      <span data-i18n="tf.country">País</span>
+      <select id="tfCountry" required></select>
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span data-i18n="tf.year">Año</span>
+        <input id="tfYear" type="number" inputmode="numeric" min="1900" max="2100" required>
+      </label>
+      <label class="field">
+        <span data-i18n="tf.month">Mes (opcional)</span>
+        <select id="tfMonth"></select>
+      </label>
+    </div>
+    <label class="field">
+      <span data-i18n="tf.cities">Ciudades (separadas por comas)</span>
+      <input id="tfCities" type="text" data-i18n-ph="tf.citiesPh" placeholder="Lisboa, Oporto">
+    </label>
+    <label class="field">
+      <span data-i18n="tf.note">Nota (opcional)</span>
+      <input id="tfNote" type="text" maxlength="120" data-i18n-ph="tf.notePh" placeholder="Viaje de fin de carrera">
+    </label>
+    <div class="sheet-actions">
+      <button class="btn btn-primary" type="submit" data-i18n="tf.save">Guardar</button>
+      <button class="btn btn-danger" id="tfDelete" type="button" data-i18n="tf.delete">Borrar</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ MENÚ ============ -->
+<div class="overlay" id="menuSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <h3 data-i18n="menu.title">Opciones</h3>
+      <button class="btn btn-ghost icon-btn" data-close type="button" aria-label="Cerrar">✕</button>
+    </div>
+    <label class="field">
+      <span data-i18n="menu.home">Mi casa</span>
+      <select id="homeSelect"></select>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="homeCounts">
+      <span data-i18n="menu.homeCounts">Contar mi país como visitado</span>
+    </label>
+    <div class="menu-list">
+      <button class="btn" id="exportBtn" type="button" data-i18n="menu.export">⬇ Copia de seguridad (exportar)</button>
+      <button class="btn" id="importBtn" type="button" data-i18n="menu.import">⬆ Restaurar copia (importar)</button>
+      <button class="btn btn-danger" id="resetBtn" type="button" data-i18n="menu.reset">Borrar todos los datos</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+    <p class="muted small" data-i18n="menu.about">Porcentaje calculado sobre los 195 países reconocidos por la ONU (193 miembros + Vaticano y Palestina). Los territorios se muestran en el mapa pero no cuentan para el %.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="countries.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
